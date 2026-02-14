@@ -5,20 +5,27 @@ import json
 import sys
 import setproctitle
 from includes.api.laravel_api_client import LaravelAPIClient
+from includes.config import Config
 
 
-# Beispiel Verwendung
+# Hauptprogramm
 if __name__ == "__main__":
-    # Prozessname setzen, damit er in ps -A als "noxfeed" angezeigt wird
-    setproctitle.setproctitle('noxfeed')
-    
-    # API Client initialisieren
-    api = LaravelAPIClient(
-        base_url="https://your-laravel-api.com/api",
-        api_token="your_api_token_here"  # Optional
-    )
-    
     try:
+        # Konfiguration laden
+        config = Config()
+        
+        # Prozessname setzen, damit er in ps -A als "noxfeed" angezeigt wird
+        setproctitle.setproctitle(config.process_name)
+        
+        # API Client mit Konfiguration initialisieren
+        api = LaravelAPIClient(
+            base_url=config.api_base_url,
+            api_token=config.api_token if config.api_token else None
+        )
+        
+        print(f"NoxFeed gestartet - Verbinde zu {config.api_base_url}")
+        print(f"Max Retries: {config.api_max_retries}, Timeout: {config.api_timeout}s")
+        
         # Beispiel: Alle Benutzer abrufen
         users = api.get('/users')
         print("Benutzer:", json.dumps(users, indent=2))
@@ -41,7 +48,12 @@ if __name__ == "__main__":
         result = api.delete('/users/1')
         print("Gelöscht:", json.dumps(result, indent=2))
         
+    except FileNotFoundError as e:
+        print(f"Fehler: {e}")
+        sys.exit(1)
     except requests.exceptions.HTTPError as e:
         print(f"HTTP Fehler: {e}")
+        sys.exit(1)
     except Exception as e:
         print(f"Fehler: {e}")
+        sys.exit(1)
