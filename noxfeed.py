@@ -1,4 +1,4 @@
-# Updated noxfeed.py file
+import setproctitle
 
-# Change the process title
 setproctitle.setproctitle('noxfeed')
+# Other code here...
