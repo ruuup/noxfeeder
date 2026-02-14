@@ -1,0 +1,18 @@
+{
+  "api": {
+    "base_url": "https://your-laravel-api.com/api",
+    "token": "",
+    "timeout": 30,
+    "max_retries": 3,
+    "retry_delay": 5
+  },
+  "logging": {
+    "enabled": true,
+    "level": "INFO",
+    "log_file": "logs/noxfeed.log"
+  },
+  "process": {
+    "name": "noxfeed",
+    "daemon": false
+  }
+}
