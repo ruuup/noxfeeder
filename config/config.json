@@ -1,18 +1,1 @@
-{
-  "api": {
-    "base_url": "https://your-laravel-api.com/api",
-    "token": "",
-    "timeout": 30,
-    "max_retries": 3,
-    "retry_delay": 5
-  },
-  "logging": {
-    "enabled": true,
-    "level": "INFO",
-    "log_file": "logs/noxfeed.log"
-  },
-  "process": {
-    "name": "noxfeed",
-    "daemon": false
-  }
-}
+{"api":{"base_url":"https://your-laravel-api.com/api","token":"","timeout":30,"max_retries":3,"retry_delay":5},"rtl_fm":{"command":"rtl_fm","args":["-f","169.65M","-M","fm","-s","22050","-g","50","-E","dc"],"auto_restart":true,"restart_delay":5},"logging":{"enabled":true,"level":"INFO","log_file":"logs/noxfeed.log"},"process":{"name":"noxfeed","daemon":false}}
