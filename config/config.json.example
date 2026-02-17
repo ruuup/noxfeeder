@@ -1,7 +1,7 @@
 {
 	"api": {
 		"base_url": "https://nox.lwyrup.at/api",
-		"token": "",
+		"token": "your-api-token-here",
 		"config_endpoint": "/config",
 		"messages_endpoint": "/messages",
 		"timeout": 30,
@@ -48,7 +48,7 @@
 		"host": "nox.lwyrup.at",
 		"port": 443,
 		"secure": true,
-		"app_key": "your-reverb-app-key",
+		"app_key": "your-reverb-app-key-here",
 		"channels": {
 			"config": "config-updates",
 			"commands": "commands"

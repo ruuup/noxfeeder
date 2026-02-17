@@ -1,0 +1,31 @@
+[Unit]
+Description=NoxFeed RTL-SDR Data Processor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nox
+Group=nox
+WorkingDirectory=/home/nox/noxfeed
+ExecStart=/home/nox/noxfeed/venv/bin/python /home/nox/noxfeed/noxfeed.py -l file api
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=noxfeed
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/nox/noxfeed/logs /home/nox/noxfeed/messages
+
+# Environment
+Environment="PYTHONUNBUFFERED=1"
+Environment="VIRTUAL_ENV=/home/nox/noxfeed/venv"
+Environment="PATH=/home/nox/noxfeed/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+[Install]
+WantedBy=multi-user.target
