@@ -5,7 +5,7 @@
 set -e
 
 # ===== CONFIGURATION =====
-REPO_URL="https://github.com/Ruuup/noxfeed.git"
+REPO_URL="https://github.com/Ruuup/noxfeeder.git"
 REPO_BRANCH="main"
 # =========================
 
