@@ -139,34 +139,39 @@ get_github_token() {
     
     # If --no-token was specified, skip token handling
     if [ -z "$TOKEN_FILE" ]; then
-        log_info "Skipping GitHub token (--no-token flag)"
+        log_info "Skipping GitHub token (--no-token flag)" >&2
         echo ""
         return 0
     fi
     
     if [ -f "$TOKEN_FILE" ]; then
-        log_info "Found existing GitHub token"
+        log_info "Found existing GitHub token" >&2
         read -p "Do you want to use the existing token? (Y/n) " -n 1 -r </dev/tty
         echo
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            GITHUB_TOKEN=$(cat "$TOKEN_FILE")
-            log_info "Using saved token"
+            # Read token and remove any trailing whitespace/newlines
+            GITHUB_TOKEN=$(cat "$TOKEN_FILE" | tr -d '\n\r' | xargs)
+            log_info "Using saved token" >&2
             echo "$GITHUB_TOKEN"
             return 0
         fi
     fi
     
-    echo ""
-    echo "Please enter your GitHub Personal Access Token:"
-    echo "(Press Enter to skip if using public repository)"
-    echo "(Token needs 'repo' permissions for private repositories)"
+    echo "" >&2
+    echo "Please enter your GitHub Personal Access Token:" >&2
+    echo "(Press Enter to skip if using public repository)" >&2
+    echo "(Token needs 'repo' permissions for private repositories)" >&2
     read -s GITHUB_TOKEN </dev/tty
-    echo ""
+    echo "" >&2
+    
+    # Remove any whitespace/newlines from token
+    GITHUB_TOKEN=$(echo "$GITHUB_TOKEN" | tr -d '\n\r' | xargs)
     
     if [ -n "$GITHUB_TOKEN" ] && [ -n "$TOKEN_FILE" ]; then
-        echo "$GITHUB_TOKEN" > "$TOKEN_FILE"
+        # Save token without trailing newline
+        echo -n "$GITHUB_TOKEN" > "$TOKEN_FILE"
         chmod 600 "$TOKEN_FILE"
-        log_info "Token saved to $TOKEN_FILE"
+        log_info "Token saved to $TOKEN_FILE" >&2
     fi
     
     echo "$GITHUB_TOKEN"
