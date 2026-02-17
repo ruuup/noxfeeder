@@ -206,7 +206,9 @@ clone_repository() {
     # Test repository accessibility first (as root, not as service user)
     if [ -n "$GITHUB_TOKEN" ]; then
         log_info "Testing repository access with token..."
-        local TEST_URL=$(echo "$REPO_URL" | sed "s|https://|https://${GITHUB_TOKEN}@|")
+        # Build URL without sed to avoid issues with special characters in token
+        local REPO_PATH="${REPO_URL#https://}"
+        local TEST_URL="https://${GITHUB_TOKEN}@${REPO_PATH}"
         echo "[DEBUG] Running: timeout 10 git ls-remote (with token)"
         if ! timeout 10 git ls-remote "$TEST_URL" 2>&1 | head -n 5; then
             log_error "Cannot access repository with provided token"
@@ -232,11 +234,14 @@ clone_repository() {
     
     # Clone as service user
     log_info "Cloning repository... (this may take a moment)"
+    echo "[DEBUG] Starting clone operation..."
     
     if [ -n "$GITHUB_TOKEN" ]; then
-        # Use token in URL for private repos
-        local CLONE_URL=$(echo "$REPO_URL" | sed "s|https://|https://${GITHUB_TOKEN}@|")
+        # Use token in URL for private repos (without sed to handle special chars)
+        local REPO_PATH="${REPO_URL#https://}"
+        local CLONE_URL="https://${GITHUB_TOKEN}@${REPO_PATH}"
         
+        echo "[DEBUG] Running: sudo -u $SERVICE_USER git clone (with token)"
         # Clone with timeout using the modified URL
         if timeout 300 sudo -u "$SERVICE_USER" bash -c "GIT_TERMINAL_PROMPT=0 git clone --depth 1 -b '$REPO_BRANCH' '$CLONE_URL' '$INSTALL_DIR'" 2>&1; then
             log_info "Repository cloned successfully"
@@ -254,6 +259,7 @@ clone_repository() {
         fi
     else
         # Public repository - no credentials needed
+        echo "[DEBUG] Running: sudo -u $SERVICE_USER git clone (no token)"
         if timeout 300 sudo -u "$SERVICE_USER" bash -c "GIT_TERMINAL_PROMPT=0 git clone --depth 1 -b '$REPO_BRANCH' '$REPO_URL' '$INSTALL_DIR'" 2>&1; then
             log_info "Repository cloned successfully"
         else
