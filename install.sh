@@ -137,9 +137,16 @@ check_system_packages() {
 get_github_token() {
     local GITHUB_TOKEN=""
     
+    # If --no-token was specified, skip token handling
+    if [ -z "$TOKEN_FILE" ]; then
+        log_info "Skipping GitHub token (--no-token flag)"
+        echo ""
+        return 0
+    fi
+    
     if [ -f "$TOKEN_FILE" ]; then
         log_info "Found existing GitHub token"
-        read -p "Do you want to use the existing token? (Y/n) " -n 1 -r
+        read -p "Do you want to use the existing token? (Y/n) " -n 1 -r </dev/tty
         echo
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
             GITHUB_TOKEN=$(cat "$TOKEN_FILE")
@@ -153,10 +160,10 @@ get_github_token() {
     echo "Please enter your GitHub Personal Access Token:"
     echo "(Press Enter to skip if using public repository)"
     echo "(Token needs 'repo' permissions for private repositories)"
-    read -s GITHUB_TOKEN
+    read -s GITHUB_TOKEN </dev/tty
     echo ""
     
-    if [ -n "$GITHUB_TOKEN" ]; then
+    if [ -n "$GITHUB_TOKEN" ] && [ -n "$TOKEN_FILE" ]; then
         echo "$GITHUB_TOKEN" > "$TOKEN_FILE"
         chmod 600 "$TOKEN_FILE"
         log_info "Token saved to $TOKEN_FILE"
@@ -178,17 +185,14 @@ create_service_user() {
 clone_repository() {
     log_step "Cloning repository from $REPO_URL (branch: $REPO_BRANCH)..."
     
+    echo "[DEBUG] Getting GitHub token..."
     local GITHUB_TOKEN=$(get_github_token)
-    local CLONE_URL="$REPO_URL"
-    
-    if [ -n "$GITHUB_TOKEN" ]; then
-        CLONE_URL=$(echo "$REPO_URL" | sed "s|https://|https://${GITHUB_TOKEN}@|")
-    fi
+    echo "[DEBUG] Token received (length: ${#GITHUB_TOKEN})"
     
     # Remove old installation if exists
     if [ -d "$INSTALL_DIR" ]; then
         log_warn "Installation directory already exists: $INSTALL_DIR"
-        read -p "Do you want to remove it and reinstall? (y/N) " -n 1 -r
+        read -p "Do you want to remove it and reinstall? (y/N) " -n 1 -r </dev/tty
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             log_step "Removing old installation..."
@@ -199,16 +203,72 @@ clone_repository() {
         fi
     fi
     
-    # Clone as service user
-    sudo -u "$SERVICE_USER" git clone -b "$REPO_BRANCH" "$CLONE_URL" "$INSTALL_DIR"
-    
-    if [ $? -ne 0 ]; then
-        log_error "Failed to clone repository"
-        echo "Please check your token and repository URL"
-        exit 1
+    # Test repository accessibility first (as root, not as service user)
+    if [ -n "$GITHUB_TOKEN" ]; then
+        log_info "Testing repository access with token..."
+        local TEST_URL=$(echo "$REPO_URL" | sed "s|https://|https://${GITHUB_TOKEN}@|")
+        echo "[DEBUG] Running: timeout 10 git ls-remote (with token)"
+        if ! timeout 10 git ls-remote "$TEST_URL" 2>&1 | head -n 5; then
+            log_error "Cannot access repository with provided token"
+            echo ""
+            echo "Possible issues:"
+            echo "  - Invalid GitHub token"
+            echo "  - Token lacks 'repo' permissions"
+            echo "  - Repository does not exist: $REPO_URL"
+            echo ""
+            exit 1
+        fi
+        log_info "Repository is accessible with token"
+    else
+        log_info "Testing repository access (public)..."
+        echo "[DEBUG] Running: timeout 10 git ls-remote $REPO_URL"
+        if ! timeout 10 git ls-remote "$REPO_URL" 2>&1 | head -n 5; then
+            log_error "Cannot access repository"
+            echo "Repository may be private or does not exist: $REPO_URL"
+            exit 1
+        fi
+        log_info "Repository is accessible"
     fi
     
-    log_info "Repository cloned successfully"
+    # Clone as service user
+    log_info "Cloning repository... (this may take a moment)"
+    
+    if [ -n "$GITHUB_TOKEN" ]; then
+        # Use token in URL for private repos
+        local CLONE_URL=$(echo "$REPO_URL" | sed "s|https://|https://${GITHUB_TOKEN}@|")
+        
+        # Clone with timeout using the modified URL
+        if timeout 300 sudo -u "$SERVICE_USER" bash -c "GIT_TERMINAL_PROMPT=0 git clone --depth 1 -b '$REPO_BRANCH' '$CLONE_URL' '$INSTALL_DIR'" 2>&1; then
+            log_info "Repository cloned successfully"
+        else
+            local EXIT_CODE=$?
+            if [ $EXIT_CODE -eq 124 ]; then
+                log_error "Clone operation timed out after 5 minutes"
+            else
+                log_error "Failed to clone repository (exit code: $EXIT_CODE)"
+            fi
+            echo ""
+            echo "Repository URL: $REPO_URL"
+            echo "Branch: $REPO_BRANCH"
+            exit 1
+        fi
+    else
+        # Public repository - no credentials needed
+        if timeout 300 sudo -u "$SERVICE_USER" bash -c "GIT_TERMINAL_PROMPT=0 git clone --depth 1 -b '$REPO_BRANCH' '$REPO_URL' '$INSTALL_DIR'" 2>&1; then
+            log_info "Repository cloned successfully"
+        else
+            local EXIT_CODE=$?
+            if [ $EXIT_CODE -eq 124 ]; then
+                log_error "Clone operation timed out after 5 minutes"
+            else
+                log_error "Failed to clone repository (exit code: $EXIT_CODE)"
+            fi
+            echo ""
+            echo "Repository URL: $REPO_URL"
+            echo "Branch: $REPO_BRANCH"
+            exit 1
+        fi
+    fi
 }
 
 copy_local_files() {

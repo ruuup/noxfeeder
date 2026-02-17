@@ -155,6 +155,9 @@ fi
 echo -e "${BLUE}Updating repository...${NC}"
 cd "$INSTALL_DIR"
 
+# Set git to non-interactive mode
+export GIT_TERMINAL_PROMPT=0
+
 # Configure git to use token
 sudo -u "$SERVICE_USER" git config credential.helper store
 echo "https://${GITHUB_TOKEN}@github.com" | sudo -u "$SERVICE_USER" git credential approve
@@ -164,12 +167,12 @@ if sudo -u "$SERVICE_USER" git diff-index --quiet HEAD --; then
     echo "No local changes to stash."
 else
     echo -e "${YELLOW}Stashing local changes...${NC}"
-    sudo -u "$SERVICE_USER" git stash
+    sudo -u "$SERVICE_USER" env GIT_TERMINAL_PROMPT=0 git stash
 fi
 
 # Pull latest changes
 echo "Pulling latest changes from repository (branch: $REPO_BRANCH)..."
-sudo -u "$SERVICE_USER" git pull origin "$REPO_BRANCH"
+sudo -u "$SERVICE_USER" env GIT_TERMINAL_PROMPT=0 git pull --progress origin "$REPO_BRANCH"
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}Failed to pull changes from repository.${NC}"
