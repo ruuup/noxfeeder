@@ -3,7 +3,7 @@
 
 set -e
 
-# Variables
+# Default variables
 INSTALL_DIR="/home/nox/noxfeed"
 SERVICE_NAME="noxfeed"
 SERVICE_USER="nox"
@@ -13,9 +13,63 @@ TOKEN_FILE="/home/nox/.noxfeed_token"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${RED}=== NoxFeed Uninstall Script ===${NC}"
+show_help() {
+    echo "NoxFeed Uninstall Script"
+    echo ""
+    echo "Usage: sudo ./uninstall.sh [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --install-dir DIR   Installation directory (default: /home/nox/noxfeed)"
+    echo "  --user USER         Service user (default: nox)"
+    echo "  --service NAME      Service name (default: noxfeed)"
+    echo "  --help, -h          Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  sudo ./uninstall.sh"
+    echo "  sudo ./uninstall.sh --install-dir /opt/myapp --user myuser"
+    echo ""
+    exit 0
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --install-dir)
+            INSTALL_DIR="$2"
+            shift 2
+            ;;
+        --user)
+            SERVICE_USER="$2"
+            TOKEN_FILE="/home/$2/.noxfeed_token"
+            shift 2
+            ;;
+        --service)
+            SERVICE_NAME="$2"
+            shift 2
+            ;;
+        --help|-h)
+            show_help
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+echo -e "${RED}╔════════════════════════════════════════════════════════╗${NC}"
+echo -e "${RED}║         NoxFeed Uninstall Script                       ║${NC}"
+echo -e "${RED}╚════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${BLUE}Configuration:${NC}"
+echo "  Service name:         $SERVICE_NAME"
+echo "  Service user:         $SERVICE_USER"
+echo "  Installation dir:     $INSTALL_DIR"
+echo "  Token file:           $TOKEN_FILE"
 echo ""
 
 # Check if running as root
@@ -65,14 +119,21 @@ if [ -d "$INSTALL_DIR" ]; then
     fi
 fi
 
-# Ask about removing user
+# Ask about removing user and group
 if id -u "$SERVICE_USER" >/dev/null 2>&1; then
     read -p "Remove user $SERVICE_USER? (y/N) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo "Removing user $SERVICE_USER..."
+        # userdel -r removes user and primary group, plus home directory
         userdel -r "$SERVICE_USER" 2>/dev/null || userdel "$SERVICE_USER"
-        echo -e "${GREEN}User removed.${NC}"
+        
+        # Remove group if it still exists (in case it wasn't the primary group)
+        if getent group "$SERVICE_USER" >/dev/null 2>&1; then
+            groupdel "$SERVICE_USER" 2>/dev/null
+        fi
+        
+        echo -e "${GREEN}User and group removed.${NC}"
     else
         echo "User $SERVICE_USER kept."
     fi
@@ -93,4 +154,12 @@ fi
 
 echo ""
 echo -e "${GREEN}Uninstall complete!${NC}"
+echo ""
+echo -e "${YELLOW}NOTE:${NC} System packages were NOT removed (they may be used by other applications):"
+echo "  - python3, python3-venv"
+echo "  - rtl-sdr, multimon-ng"
+echo "  - git (if installed)"
+echo ""
+echo "If you want to remove them manually, run:"
+echo "  sudo apt remove python3-venv rtl-sdr multimon-ng"
 echo ""

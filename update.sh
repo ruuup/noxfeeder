@@ -3,18 +3,15 @@
 
 set -e
 
-# ===== CONFIGURATION =====
-# Specify the branch to pull from (default: main)
+# ===== DEFAULT CONFIGURATION =====
 REPO_BRANCH="main"
-# =========================
-
-# Variables
 INSTALL_DIR="/home/nox/noxfeed"
 SERVICE_NAME="noxfeed"
 SERVICE_USER="nox"
 TOKEN_FILE="/home/nox/.noxfeed_token"
+# =================================
+
 VENV_DIR="$INSTALL_DIR/venv"
-BACKUP_DIR="/home/nox/noxfeed_backup_$(date +%Y%m%d_%H%M%S)"
 
 # Colors for output
 RED='\033[0;31m'
@@ -23,7 +20,71 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}=== NoxFeed Update Script ===${NC}"
+show_help() {
+    echo "NoxFeed Update Script"
+    echo ""
+    echo "Usage: sudo ./update.sh [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --install-dir DIR   Installation directory (default: /home/nox/noxfeed)"
+    echo "  --user USER         Service user (default: nox)"
+    echo "  --service NAME      Service name (default: noxfeed)"
+    echo "  --branch BRANCH     Git branch to pull (default: main)"
+    echo "  --help, -h          Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  sudo ./update.sh"
+    echo "  sudo ./update.sh --branch develop"
+    echo "  sudo ./update.sh --install-dir /opt/myapp --user myuser"
+    echo ""
+    exit 0
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --install-dir)
+            INSTALL_DIR="$2"
+            VENV_DIR="$INSTALL_DIR/venv"
+            shift 2
+            ;;
+        --user)
+            SERVICE_USER="$2"
+            TOKEN_FILE="/home/$2/.noxfeed_token"
+            shift 2
+            ;;
+        --service)
+            SERVICE_NAME="$2"
+            shift 2
+            ;;
+        --branch)
+            REPO_BRANCH="$2"
+            shift 2
+            ;;
+        --help|-h)
+            show_help
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Recalculate paths based on parsed arguments
+BACKUP_DIR="${INSTALL_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
+
+echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║         NoxFeed Update Script                          ║${NC}"
+echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${BLUE}Configuration:${NC}"
+echo "  Service name:         $SERVICE_NAME"
+echo "  Service user:         $SERVICE_USER"
+echo "  Installation dir:     $INSTALL_DIR"
+echo "  Git branch:           $REPO_BRANCH"
+echo "  Token file:           $TOKEN_FILE"
 echo ""
 
 # Check if running as root

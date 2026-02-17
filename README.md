@@ -12,63 +12,142 @@ RTL-SDR POCSAG receiver with Laravel Reverb WebSocket integration.
 - 🔧 **Remote Management**: Restart and update via API commands
 - 🐍 **Virtual Environment**: Isolated Python environment
 
-## Quick Start
+## Installation
 
-### One-Line Installation (Easiest)
+The project includes a **universal installation script** that handles all installation scenarios.
+
+### Installation Modes
+
+#### 1. Production (Git Clone) - Default
+
+Recommended for production deployment. Clones from Git repository and sets up systemd service.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/noxfeed/main/install.sh | sudo bash
-```
-
-Or if you prefer wget:
-```bash
-wget -qO- https://raw.githubusercontent.com/YOUR_USERNAME/noxfeed/main/install.sh | sudo bash
-```
-
-**Note:** Replace `YOUR_USERNAME` with your GitHub username before running.
-
-### Automated Installation (Recommended)
-
-For more control over the installation process:
-
-1. Download and configure the installation script:
-```bash
-wget https://raw.githubusercontent.com/YOUR_USERNAME/noxfeed/main/install.sh
+# Download the installation script
+wget https://raw.githubusercontent.com/Ruuup/noxfeed/main/install.sh
 chmod +x install.sh
 
-# Edit the script to set your repository URL
+# Edit REPO_URL if needed
 nano install.sh
-# Update REPO_URL="https://github.com/YOUR_USERNAME/noxfeed.git"
+
+# Run installation
+sudo ./install.sh --git
 ```
 
-2. Run the installation:
+**What it does:**
+- Installs system packages (git, python3, rtl-sdr, multimon-ng)
+- Asks for GitHub Personal Access Token (saved for updates)
+- Clones repository to `/home/nox/noxfeed`
+- Creates Python virtual environment
+- Installs Python dependencies
+- Sets up systemd service
+- Configures proper permissions
+
+#### 2. Local Installation
+
+Install from a local copy without Git clone. Useful if you've already downloaded the files.
+
 ```bash
-sudo ./install.sh
+cd /path/to/noxfeed-source
+sudo ./install.sh --local
 ```
 
-The script will:
-- Check and install required system packages (git, python3, rtl-sdr, multimon-ng)
-- Ask for your GitHub Personal Access Token (for private repo access)
-- Save the token securely for future updates
-- Clone the repository to `/home/nox/noxfeed`
-- Create a Python virtual environment
-- Install all dependencies
-- Set up the systemd service
-- Configure proper ownership and permissions
+**What it does:**
+- Copies files from current directory to `/home/nox/noxfeed`
+- Creates Python virtual environment
+- Installs dependencies
+- Sets up systemd service
 
-3. Configure the application:
+#### 3. Development Mode
+
+For local development and testing. No root required, no systemd service.
+
+```bash
+cd /path/to/noxfeed-source
+./install.sh --dev
+```
+
+**What it does:**
+- Creates virtual environment in current directory
+- Installs dependencies
+- Ready for development/testing
+- No systemd service installation
+
+### Installation Options
+
+```bash
+Usage: ./install.sh [OPTIONS]
+
+Installation Modes:
+  --git              Clone from Git repository (default if run as root)
+  --local            Install from current directory
+  --dev              Development setup (no systemd, no root required)
+
+Options:
+  --install-dir DIR  Custom installation directory (default: /home/nox/noxfeed)
+  --user USER        Service user (default: nox)
+  --skip-service     Don't install systemd service
+  --no-token         Skip GitHub token (for public repos)
+  --help             Show help message
+
+Examples:
+  # Standard production installation
+  sudo ./install.sh --git
+
+  # Custom installation directory
+  sudo ./install.sh --git --install-dir /opt/noxfeed
+
+  # Install without systemd service
+  sudo ./install.sh --local --skip-service
+
+  # Development setup
+  ./install.sh --dev
+```
+
+### One-Line Installation
+
+For quick remote installations:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Ruuup/noxfeed/main/install.sh | sudo bash
+```
+
+Or with wget:
+```bash
+wget -qO- https://raw.githubusercontent.com/Ruuup/noxfeed/main/install.sh | sudo bash
+```
+
+### Post-Installation
+
+1. **Configure the application:**
 ```bash
 sudo nano /home/nox/noxfeed/config/config.json
 ```
-Set your API token and Reverb app key.
 
-4. Start the service:
+Set your API token and Reverb app key:
+```json
+{
+  "api": {
+    "token": "your-api-token-here"
+  },
+  "websocket": {
+    "app_key": "your-reverb-app-key-here"
+  }
+}
+```
+
+2. **Start the service:**
 ```bash
 sudo systemctl start noxfeed
+```
+
+3. **Check status:**
+```bash
+sudo systemctl status noxfeed
 sudo journalctl -u noxfeed -f
 ```
 
-### Updating
+## Updating
 
 To update NoxFeed to the latest version:
 
@@ -79,14 +158,38 @@ sudo ./update.sh
 
 The update script will:
 - Stop the service
-- Create a backup of the current installation
-- Pull the latest changes from the repository
+- Create a timestamped backup
+- Pull latest changes from Git
 - Update Python dependencies
 - Restore your configuration
 - Restart the service
 - Provide rollback instructions if something fails
 
-### Uninstalling
+**Options:**
+```bash
+sudo ./update.sh [OPTIONS]
+
+Options:
+  --install-dir DIR   Installation directory (default: /home/nox/noxfeed)
+  --user USER         Service user (default: nox)
+  --service NAME      Service name (default: noxfeed)
+  --branch BRANCH     Git branch to pull (default: main)
+  --help, -h          Show help message
+```
+
+**Examples:**
+```bash
+# Standard update
+sudo ./update.sh
+
+# Update from different branch
+sudo ./update.sh --branch develop
+
+# Update custom installation
+sudo ./update.sh --install-dir /opt/myapp --user myuser
+```
+
+## Uninstalling
 
 To completely remove NoxFeed:
 
@@ -95,67 +198,49 @@ cd /home/nox/noxfeed
 sudo ./uninstall.sh
 ```
 
-The script will ask for confirmation and allow you to choose what to remove.
+Interactive prompts allow you to choose what to remove (service, files, user, token).
+
+**Options:**
+```bash
+sudo ./uninstall.sh [OPTIONS]
+
+Options:
+  --install-dir DIR   Installation directory (default: /home/nox/noxfeed)
+  --user USER         Service user (default: nox)
+  --service NAME      Service name (default: noxfeed)
+  --help, -h          Show help message
+```
+
+**Examples:**
+```bash
+# Standard uninstall
+sudo ./uninstall.sh
+
+# Uninstall custom installation
+sudo ./uninstall.sh --install-dir /opt/myapp --user myuser --service myservice
+```
+
+**Note:** System packages (python3, rtl-sdr, multimon-ng, git) are NOT removed automatically as they may be used by other applications.
 
 ## GitHub Personal Access Token
 
-For private repository access, you need a GitHub Personal Access Token:
+For **private repository** access, you need a GitHub Personal Access Token:
 
-1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
-2. Click "Generate new token" → "Generate new token (classic)"
-3. Give it a descriptive name (e.g., "NoxFeed Server")
-4. Set expiration (recommended: 90 days or No expiration for automation)
-5. Select scopes:
-   - ✅ `repo` (Full control of private repositories)
-6. Click "Generate token"
-7. **Copy the token immediately** (you won't see it again!)
-8. Use this token when running `install.sh`
+1. Go to: GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Click "Generate new token (classic)"
+3. Give it a name (e.g., "NoxFeed Server")
+4. Set expiration (90 days or No expiration)
+5. Select scope: ✅ `repo` (Full control of private repositories)
+6. Generate and **copy the token immediately**
+7. Paste when prompted during installation
 
-The token will be saved securely in `/home/nox/.noxfeed_token` for automatic updates.
+The token is saved in `/home/nox/.noxfeed_token` (permissions: 600) for automatic updates.
 
-**Security Note:** The token file is created with restricted permissions (600) and owned by the nox user.
-
-## Installation Scripts Overview
-
-### install.sh
-Complete automated installation script:
-- Checks and installs system dependencies
-- Prompts for GitHub token (saved for future use)
-- Clones the private repository
-- Creates Python virtual environment
-- Installs all dependencies
-- Sets up systemd service
-- Configures permissions
-
-**Before running:** Edit `REPO_URL` in the script to match your repository.
-
-### update.sh
-Automated update script:
-- Stops the service
-- Creates timestamped backup
-- Backs up configuration
-- Pulls latest changes from repository
-- Updates Python dependencies
-- Restores configuration
-- Restarts the service
-- Provides rollback instructions on failure
-
-Safe to run multiple times.
-
-### uninstall.sh
-Clean removal script:
-- Stops and disables the service
-- Removes systemd service file
-- Optionally removes installation directory
-- Optionally removes user account
-- Optionally removes saved token
-
-Interactive prompts for each removal step.
-
-### install_service.sh (legacy)
-Original service installation script. Use `install.sh` instead for new installations.
+**For public repositories:** Use `--no-token` flag to skip token prompt.
 
 ## Manual Installation
+
+If you prefer manual setup or need custom control:
 
 ### Requirements
 - Python 3.7+
@@ -163,48 +248,51 @@ Original service installation script. Use `install.sh` instead for new installat
 - rtl-sdr
 - multimon-ng
 
-### Installation as systemd service
+### Steps
 
-The service runs in a Python virtual environment for isolation and is designed for Debian-based systems.
-
-1. Install system requirements:
+1. **Install system packages:**
 ```bash
-# Debian/Ubuntu
 sudo apt update
 sudo apt install python3 python3-venv python3-pip rtl-sdr multimon-ng
 ```
 
-2. Clone or copy the project to the target directory:
+2. **Create installation directory:**
 ```bash
-# As the nox user (or copy files as root and adjust ownership)
-mkdir -p /home/nox/noxfeed
+sudo mkdir -p /home/nox/noxfeed
 cd /home/nox/noxfeed
-# Copy all project files here
+# Copy or clone project files here
 ```
 
-3. Create and edit your configuration:
+3. **Configure:**
 ```bash
 cp config/config.json.example config/config.json
-nano config/config.json  # Edit with your settings
+sudo nano config/config.json
 ```
 
-4. Run the installation script:
+4. **Use the installation script:**
 ```bash
-sudo chmod +x install_service.sh
-sudo ./install_service.sh
+sudo ./install.sh --local
 ```
 
-The installation script will:
-- Create the `nox` user and group (if not exists)
-- Install to `/home/nox/noxfeed`
-- Create a Python virtual environment at `/home/nox/noxfeed/venv`
-- Install all Python dependencies
-- Set up the systemd service
+Or follow the script manually if needed.
 
-5. Configure your API token and Reverb app key in `/home/nox/noxfeed/config/config.json`
+## Development Setup
 
-6. Start the service:
+For local development without systemd:
+
 ```bash
+cd /path/to/noxfeed
+./install.sh --dev
+
+# Activate venv
+source venv/bin/activate
+
+# Run with console logging
+python3 noxfeed.py -l console
+
+# Deactivate when done
+deactivate
+```
 sudo systemctl start noxfeed
 ```
 
@@ -224,22 +312,20 @@ python3 noxfeed.py
 
 ### Development Setup
 
-For quick setup, use the provided scripts:
+Use the unified installation script in development mode:
 
-**Linux/macOS:**
 ```bash
-chmod +x setup_venv.sh
-./setup_venv.sh
+# Development mode (creates venv in current directory)
+sudo bash install.sh --dev
+
+# Activate the virtual environment
 source venv/bin/activate
+
+# Run with custom logging
+python3 noxfeed.py -l console
 ```
 
-**Windows:**
-```cmd
-setup_venv.bat
-venv\Scripts\activate
-```
-
-**Manual setup:**
+**Manual setup without install script:**
 ```bash
 # Create and activate venv
 python3 -m venv venv
@@ -282,7 +368,7 @@ python3 noxfeed.py -l file
 
 ## WebSocket Configuration (Laravel Reverb)
 
-The application connects to Laravel Reverb using the Pusher protocol. Configure in `config/config.json`:
+The application connects to Laravel Reverb using the Pusher protocol and subscribes to two channels. Configure in `config/config.json`:
 
 ```json
 "websocket": {
@@ -290,8 +376,14 @@ The application connects to Laravel Reverb using the Pusher protocol. Configure 
     "port": 443,
     "secure": true,
     "app_key": "your-reverb-app-key",
-    "channel": "config-updates",
-    "event": "config.updated",
+    "channels": {
+        "config": "config-updates",
+        "commands": "commands"
+    },
+    "events": {
+        "config": "config.updated",
+        "commands": "command.execute"
+    },
     "token": "",
     "reconnect_delay": 5
 }
@@ -302,16 +394,18 @@ The application connects to Laravel Reverb using the Pusher protocol. Configure 
 - `port`: WebSocket port (443 for secure connections)
 - `secure`: Use WSS (true) or WS (false)
 - `app_key`: Laravel Reverb application key
-- `channel`: Channel to subscribe to
-- `event`: Event name to listen for
+- `channels.config`: Channel name for configuration updates
+- `channels.commands`: Channel name for remote commands
+- `events.config`: Event name for configuration changes
+- `events.commands`: Event name for command execution
 - `token`: Optional Bearer token for authentication
 - `reconnect_delay`: Seconds to wait before reconnecting
 
 The WebSocket listener will automatically:
 1. Connect to the Reverb server
-2. Subscribe to the specified channel
-3. Listen for events
-4. Trigger config updates when events are received
+2. Subscribe to both channels (config-updates and commands)
+3. Listen for events on both channels
+4. Trigger config updates or execute commands when events are received
 
 ## systemd Service Management
 
