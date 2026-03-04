@@ -1,4 +1,12 @@
 {
+	"feeder": {
+		"guid": ""
+	},
+	"wireguard": {
+		"private_key": "",
+		"public_key": "",
+		"ip": ""
+	},
 	"api": {
 		"base_url": "https://nox.lwyrup.at/api",
 		"token": "your-api-token-here",

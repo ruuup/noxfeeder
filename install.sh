@@ -149,8 +149,8 @@ get_github_token() {
         read -p "Do you want to use the existing token? (Y/n) " -n 1 -r </dev/tty
         echo
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            # Read token and remove any trailing whitespace/newlines
-            GITHUB_TOKEN=$(cat "$TOKEN_FILE" | tr -d '\n\r' | xargs)
+            # Read token and strip ALL whitespace characters
+            GITHUB_TOKEN=$(tr -d '[:space:]' < "$TOKEN_FILE")
             log_info "Using saved token" >&2
             echo "$GITHUB_TOKEN"
             return 0
@@ -164,17 +164,88 @@ get_github_token() {
     read -s GITHUB_TOKEN </dev/tty
     echo "" >&2
     
-    # Remove any whitespace/newlines from token
-    GITHUB_TOKEN=$(echo "$GITHUB_TOKEN" | tr -d '\n\r' | xargs)
+    # Strip ALL whitespace characters from token
+    GITHUB_TOKEN=$(echo "$GITHUB_TOKEN" | tr -d '[:space:]')
     
     if [ -n "$GITHUB_TOKEN" ] && [ -n "$TOKEN_FILE" ]; then
-        # Save token without trailing newline
-        echo -n "$GITHUB_TOKEN" > "$TOKEN_FILE"
+        # Save token without ANY trailing whitespace or newline
+        printf '%s' "$GITHUB_TOKEN" > "$TOKEN_FILE"
         chmod 600 "$TOKEN_FILE"
         log_info "Token saved to $TOKEN_FILE" >&2
     fi
     
     echo "$GITHUB_TOKEN"
+}
+
+get_setup_token() {
+    log_step "NoxFeed Setup Configuration" >&2
+    echo "" >&2
+    echo "You can either:" >&2
+    echo "  1. Enter a setup token (Base64-encoded JSON with all settings)" >&2
+    echo "  2. Skip and configure manually later" >&2
+    echo "" >&2
+    read -p "Do you have a setup token? (y/N) " -n 1 -r </dev/tty
+    echo "" >&2
+    
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_info "Skipping setup token - you can configure manually later" >&2
+        return 0
+    fi
+    
+    echo "" >&2
+    echo "Paste your setup token:" >&2
+    read -s SETUP_TOKEN </dev/tty
+    echo "" >&2
+    
+    # Strip whitespace
+    SETUP_TOKEN=$(echo "$SETUP_TOKEN" | tr -d '[:space:]')
+    
+    if [ -z "$SETUP_TOKEN" ]; then
+        log_warn "No token provided" >&2
+        return 0
+    fi
+    
+    # Decode base64
+    local DECODED=""
+    if command -v base64 &> /dev/null; then
+        DECODED=$(echo "$SETUP_TOKEN" | base64 -d 2>/dev/null)
+    else
+        log_error "base64 command not found" >&2
+        return 1
+    fi
+    
+    if [ -z "$DECODED" ]; then
+        log_error "Failed to decode setup token" >&2
+        return 1
+    fi
+    
+    # Extract values using jq or python
+    if command -v jq &> /dev/null; then
+        FEEDER_GUID=$(echo "$DECODED" | jq -r '.feeder_guid // empty')
+        WG_PRIVATE_KEY=$(echo "$DECODED" | jq -r '.wireguard_private_key // empty')
+        WG_PUBLIC_KEY=$(echo "$DECODED" | jq -r '.wireguard_public_key // empty')
+        WG_IP=$(echo "$DECODED" | jq -r '.wireguard_ip // empty')
+    elif command -v python3 &> /dev/null; then
+        FEEDER_GUID=$(echo "$DECODED" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('feeder_guid', ''))")
+        WG_PRIVATE_KEY=$(echo "$DECODED" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('wireguard_private_key', ''))")
+        WG_PUBLIC_KEY=$(echo "$DECODED" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('wireguard_public_key', ''))")
+        WG_IP=$(echo "$DECODED" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('wireguard_ip', ''))")
+    else
+        log_error "Neither jq nor python3 found - cannot parse setup token" >&2
+        return 1
+    fi
+    
+    # Export as global variables for later use
+    export NOXFEED_SETUP_FEEDER_GUID="$FEEDER_GUID"
+    export NOXFEED_SETUP_WG_PRIVATE_KEY="$WG_PRIVATE_KEY"
+    export NOXFEED_SETUP_WG_PUBLIC_KEY="$WG_PUBLIC_KEY"
+    export NOXFEED_SETUP_WG_IP="$WG_IP"
+    
+    log_info "Setup token decoded successfully" >&2
+    log_info "Feeder GUID: ${FEEDER_GUID:0:8}..." >&2
+    log_info "WireGuard IP: $WG_IP" >&2
+    
+    return 0
 }
 
 create_service_user() {
@@ -309,6 +380,73 @@ setup_config() {
     if [ ! -f "$INSTALL_DIR/config/config.json" ] && [ -f "$INSTALL_DIR/config/config.json.example" ]; then
         log_step "Creating config.json from example..."
         cp "$INSTALL_DIR/config/config.json.example" "$INSTALL_DIR/config/config.json"
+    fi
+    
+    # Apply setup token values if they were provided
+    if [ -n "$NOXFEED_SETUP_FEEDER_GUID" ] || [ -n "$NOXFEED_SETUP_WG_IP" ]; then
+        log_step "Applying setup configuration..."
+        
+        local CONFIG_FILE="$INSTALL_DIR/config/config.json"
+        
+        if [ ! -f "$CONFIG_FILE" ]; then
+            log_warn "Config file not found at $CONFIG_FILE"
+            return 0
+        fi
+        
+        # Use python to update JSON (safer than sed for JSON)
+        if command -v python3 &> /dev/null; then
+            python3 << EOF
+import json
+import sys
+
+config_file = "$CONFIG_FILE"
+
+try:
+    with open(config_file, 'r') as f:
+        config = json.load(f)
+    
+    # Add feeder section if not exists
+    if 'feeder' not in config:
+        config['feeder'] = {}
+    
+    # Apply values
+    if "$NOXFEED_SETUP_FEEDER_GUID":
+        config['feeder']['guid'] = "$NOXFEED_SETUP_FEEDER_GUID"
+    
+    # Add wireguard section if not exists  
+    if 'wireguard' not in config:
+        config['wireguard'] = {}
+    
+    if "$NOXFEED_SETUP_WG_PRIVATE_KEY":
+        config['wireguard']['private_key'] = "$NOXFEED_SETUP_WG_PRIVATE_KEY"
+    
+    if "$NOXFEED_SETUP_WG_PUBLIC_KEY":
+        config['wireguard']['public_key'] = "$NOXFEED_SETUP_WG_PUBLIC_KEY"
+    
+    if "$NOXFEED_SETUP_WG_IP":
+        config['wireguard']['ip'] = "$NOXFEED_SETUP_WG_IP"
+    
+    # Save updated config
+    with open(config_file, 'w') as f:
+        json.dump(config, f, indent=2)
+    
+    print("Configuration updated successfully")
+    sys.exit(0)
+    
+except Exception as e:
+    print(f"Error updating config: {e}", file=sys.stderr)
+    sys.exit(1)
+EOF
+            
+            if [ $? -eq 0 ]; then
+                log_info "Setup configuration applied successfully"
+            else
+                log_warn "Failed to apply setup configuration"
+            fi
+        else
+            log_warn "Python3 not available - skipping config update"
+        fi
+    else
         log_warn "Please edit $INSTALL_DIR/config/config.json with your settings!"
     fi
 }
@@ -542,6 +680,11 @@ fi
 
 # Check system packages
 check_system_packages
+
+# Get setup token (optional)
+if [ "$IS_DEV_MODE" = false ]; then
+    get_setup_token
+fi
 
 # Create service user (production only)
 if [ "$IS_DEV_MODE" = false ]; then

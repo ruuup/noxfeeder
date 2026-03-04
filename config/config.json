@@ -1,9 +1,17 @@
 {
+	"feeder": {
+		"guid": ""
+	},
+	"wireguard": {
+		"private_key": "",
+		"public_key": "",
+		"ip": ""
+	},
 	"api": {
 		"base_url": "https://nox.lwyrup.at/api",
 		"token": "unvgiJvJsZejt7uEM4nxDVoxgPeMnuJagIFR5jEH19a87b7a",
 		"config_endpoint": "/config",
-		"messages_endpoint": "/messages",
+		"messages_endpoint": "/message",
 		"timeout": 30,
 		"max_retries": 3,
 		"retry_delay": 5
@@ -48,7 +56,7 @@
 		"host": "nox.lwyrup.at",
 		"port": 443,
 		"secure": true,
-		"app_key": "your-reverb-app-key",
+		"app_key": "uu5cwxbjivil6ykji9qu",
 		"channels": {
 			"config": "config",
 			"commands": "message"
