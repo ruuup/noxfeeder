@@ -50,8 +50,8 @@
 		"secure": true,
 		"app_key": "your-reverb-app-key-here",
 		"channels": {
-			"config": "config-updates",
-			"commands": "commands"
+			"config": "config",
+			"commands": "message"
 		},
 		"events": {
 			"config_updated": "config.updated",
