@@ -196,22 +196,37 @@ if __name__ == "__main__":
         multimon_args = config.get("multimon.args", [])
 
         api_logger.info("Starting RTL-FM worker...")
+        console_logger.info("Checking for RTL-SDR device...")
+
         rtl_worker = RtlFmWorker(rtl_command, rtl_args, logger=api_logger)
         rtl_process = rtl_worker.start()
 
-        # Check if rtl_fm started successfully
-        time.sleep(0.5)  # Give process a moment to start
-        if rtl_process.poll() is not None:
-            # Process already exited
+        # Check if rtl_fm started successfully - wait a bit longer for device detection
+        time.sleep(1.0)  # Give RTL-FM more time to detect device
+        rtl_exit_code = rtl_process.poll()
+
+        if rtl_exit_code is not None:
+            # Process already exited - RTL-SDR error
             console_logger.error("RTL-FM failed to start!")
+            console_logger.error("Exit code: %d", rtl_exit_code)
             if rtl_process.stderr:
                 error_output = rtl_process.stderr.read()
                 if isinstance(error_output, bytes):
                     error_output = error_output.decode("utf-8", errors="replace")
-                console_logger.error("RTL-FM error: %s", error_output)
-            console_logger.error("Make sure an RTL-SDR device is connected")
-            console_logger.error("Test with: rtl_test")
+                if error_output.strip():
+                    console_logger.error("RTL-FM error: %s", error_output)
+            console_logger.error("")
+            console_logger.error("Common issues:")
+            console_logger.error("  • No RTL-SDR device connected via USB")
+            console_logger.error("  • Device already in use by another process")
+            console_logger.error(
+                "  • Missing permissions (run as root or add user to plugdev group)"
+            )
+            console_logger.error("")
+            console_logger.error("Test your RTL-SDR device with: rtl_test")
             sys.exit(1)
+
+        console_logger.info("RTL-FM started successfully")
 
         api_logger.info("Starting Multimon-NG worker...")
         multimon_worker = MultimonWorker(
@@ -221,18 +236,6 @@ if __name__ == "__main__":
             logger=api_logger,
         )
         multimon_process = multimon_worker.start()
-
-        # Check if multimon-ng started successfully
-        time.sleep(0.5)
-        if multimon_process.poll() is not None:
-            console_logger.error("Multimon-NG failed to start!")
-            if multimon_process.stderr:
-                error_output = multimon_process.stderr.read()
-                if isinstance(error_output, bytes):
-                    error_output = error_output.decode("utf-8", errors="replace")
-                console_logger.error("Multimon-NG error: %s", error_output)
-            rtl_process.terminate()
-            sys.exit(1)
 
         if rtl_process.stdout:
             rtl_process.stdout.close()
