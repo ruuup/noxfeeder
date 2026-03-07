@@ -2,14 +2,11 @@
 	"feeder": {
 		"guid": ""
 	},
-	"wireguard": {
-		"private_key": "",
-		"public_key": "",
-		"ip": ""
-	},
 	"api": {
 		"base_url": "https://nox.lwyrup.at/api",
-		"token": "unvgiJvJsZejt7uEM4nxDVoxgPeMnuJagIFR5jEH19a87b7a",
+		"user": "",
+		"password": "",
+		"token": "",
 		"config_endpoint": "/config",
 		"messages_endpoint": "/message",
 		"timeout": 30,
@@ -59,11 +56,11 @@
 		"app_key": "uu5cwxbjivil6ykji9qu",
 		"channels": {
 			"config": "config",
-			"commands": "message"
+			"commands": "private-message"
 		},
 		"events": {
 			"config_updated": "config.updated",
-			"command_received": "command.execute"
+			"command_received": "message.sent"
 		},
 		"token": "",
 		"reconnect_delay": 5

@@ -27,6 +27,12 @@ echo ""
 read -p "Feeder GUID: " FEEDER_GUID
 echo ""
 
+echo "API Authentication:"
+read -p "  User/Email:  " API_USER
+read -sp "  Password:    " API_PASSWORD
+echo ""
+echo ""
+
 echo "WireGuard Configuration:"
 read -p "  Private Key: " WG_PRIVATE_KEY
 read -p "  Public Key:  " WG_PUBLIC_KEY
@@ -34,7 +40,7 @@ read -p "  IP Address:  " WG_IP
 echo ""
 
 # Validate inputs
-if [ -z "$FEEDER_GUID" ] || [ -z "$WG_PRIVATE_KEY" ] || [ -z "$WG_PUBLIC_KEY" ] || [ -z "$WG_IP" ]; then
+if [ -z "$FEEDER_GUID" ] || [ -z "$API_USER" ] || [ -z "$API_PASSWORD" ] || [ -z "$WG_PRIVATE_KEY" ] || [ -z "$WG_PUBLIC_KEY" ] || [ -z "$WG_IP" ]; then
     echo -e "${YELLOW}Warning: Some fields are empty!${NC}"
     read -p "Continue anyway? (y/N) " -n 1 -r
     echo ""
@@ -48,6 +54,8 @@ fi
 SETUP_JSON=$(cat <<EOF
 {
   "feeder_guid": "$FEEDER_GUID",
+  "api_user": "$API_USER",
+  "api_password": "$API_PASSWORD",
   "wireguard_private_key": "$WG_PRIVATE_KEY",
   "wireguard_public_key": "$WG_PUBLIC_KEY",
   "wireguard_ip": "$WG_IP"

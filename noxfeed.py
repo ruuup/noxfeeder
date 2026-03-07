@@ -46,10 +46,30 @@ if __name__ == "__main__":
         api_logger.info("NoxFeed starting...")
 
         # API client
+        api_user = config.get("api.user")
+        api_password = config.get("api.password")
+        api_token = config.get("api.token")
+
         api_client = LaravelAPIClient(
             base_url=config.api_base_url,
-            api_token=config.api_token if config.api_token else None,
+            api_token=api_token if api_token else None,
+            user=api_user if api_user else None,
+            password=api_password if api_password else None,
+            logger=api_logger,
         )
+
+        # Authenticate if user/password configured
+        if api_user and api_password:
+            try:
+                api_logger.info("Authenticating with API...")
+                api_client.login()
+                api_logger.info("Authentication successful")
+            except Exception as e:
+                api_logger.error("Failed to authenticate with API: %s", e)
+                console_logger.error(
+                    "Authentication failed. Please check your credentials in config.json"
+                )
+                sys.exit(1)
 
         # Message handler
         message_handler = MessageHandler(

@@ -114,6 +114,10 @@ check_system_packages() {
         if ! command -v multimon-ng &> /dev/null; then
             MISSING_PACKAGES+=("multimon-ng")
         fi
+        
+        if ! command -v wg &> /dev/null; then
+            MISSING_PACKAGES+=("wireguard-tools")
+        fi
     fi
     
     if [ ${#MISSING_PACKAGES[@]} -gt 0 ]; then
@@ -222,11 +226,15 @@ get_setup_token() {
     # Extract values using jq or python
     if command -v jq &> /dev/null; then
         FEEDER_GUID=$(echo "$DECODED" | jq -r '.feeder_guid // empty')
+        API_USER=$(echo "$DECODED" | jq -r '.api_user // empty')
+        API_PASSWORD=$(echo "$DECODED" | jq -r '.api_password // empty')
         WG_PRIVATE_KEY=$(echo "$DECODED" | jq -r '.wireguard_private_key // empty')
         WG_PUBLIC_KEY=$(echo "$DECODED" | jq -r '.wireguard_public_key // empty')
         WG_IP=$(echo "$DECODED" | jq -r '.wireguard_ip // empty')
     elif command -v python3 &> /dev/null; then
         FEEDER_GUID=$(echo "$DECODED" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('feeder_guid', ''))")
+        API_USER=$(echo "$DECODED" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('api_user', ''))")
+        API_PASSWORD=$(echo "$DECODED" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('api_password', ''))")
         WG_PRIVATE_KEY=$(echo "$DECODED" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('wireguard_private_key', ''))")
         WG_PUBLIC_KEY=$(echo "$DECODED" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('wireguard_public_key', ''))")
         WG_IP=$(echo "$DECODED" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('wireguard_ip', ''))")
@@ -237,12 +245,15 @@ get_setup_token() {
     
     # Export as global variables for later use
     export NOXFEED_SETUP_FEEDER_GUID="$FEEDER_GUID"
+    export NOXFEED_SETUP_API_USER="$API_USER"
+    export NOXFEED_SETUP_API_PASSWORD="$API_PASSWORD"
     export NOXFEED_SETUP_WG_PRIVATE_KEY="$WG_PRIVATE_KEY"
     export NOXFEED_SETUP_WG_PUBLIC_KEY="$WG_PUBLIC_KEY"
     export NOXFEED_SETUP_WG_IP="$WG_IP"
     
     log_info "Setup token decoded successfully" >&2
     log_info "Feeder GUID: ${FEEDER_GUID:0:8}..." >&2
+    log_info "API User: $API_USER" >&2
     log_info "WireGuard IP: $WG_IP" >&2
     
     return 0
@@ -383,7 +394,7 @@ setup_config() {
     fi
     
     # Apply setup token values if they were provided
-    if [ -n "$NOXFEED_SETUP_FEEDER_GUID" ] || [ -n "$NOXFEED_SETUP_WG_IP" ]; then
+    if [ -n "$NOXFEED_SETUP_FEEDER_GUID" ] || [ -n "$NOXFEED_SETUP_WG_IP" ] || [ -n "$NOXFEED_SETUP_API_USER" ]; then
         log_step "Applying setup configuration..."
         
         local CONFIG_FILE="$INSTALL_DIR/config/config.json"
@@ -409,9 +420,20 @@ try:
     if 'feeder' not in config:
         config['feeder'] = {}
     
-    # Apply values
+    # Apply feeder values
     if "$NOXFEED_SETUP_FEEDER_GUID":
         config['feeder']['guid'] = "$NOXFEED_SETUP_FEEDER_GUID"
+    
+    # Add api section if not exists
+    if 'api' not in config:
+        config['api'] = {}
+    
+    # Apply API authentication values
+    if "$NOXFEED_SETUP_API_USER":
+        config['api']['user'] = "$NOXFEED_SETUP_API_USER"
+    
+    if "$NOXFEED_SETUP_API_PASSWORD":
+        config['api']['password'] = "$NOXFEED_SETUP_API_PASSWORD"
     
     # Add wireguard section if not exists  
     if 'wireguard' not in config:
