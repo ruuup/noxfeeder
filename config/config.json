@@ -46,7 +46,8 @@
 			"-u",
 			"-n",
 			"-f",
-			"auto"
+			"auto",
+			"-"
 		]
 	},
 	"websocket": {
