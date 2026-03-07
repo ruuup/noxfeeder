@@ -72,6 +72,12 @@ if __name__ == "__main__":
                 )
                 sys.exit(1)
 
+        # Use API token for WebSocket authentication if available
+        # This allows private channels to work with the same authentication
+        websocket_auth_token = (
+            api_client.token if api_client.token else config.get("websocket.token", "")
+        )
+
         # Message handler
         message_handler = MessageHandler(
             storage_dir=config.get("messages.storage_dir", "messages"),
@@ -122,13 +128,20 @@ if __name__ == "__main__":
         ws_port = config.get("websocket.port", 443)
         ws_secure = config.get("websocket.secure", True)
         ws_app_key = config.get("websocket.app_key", "")
-        ws_token = config.get("websocket.token", "")
         ws_reconnect_delay = config.get("websocket.reconnect_delay", 5)
 
         # WebSocket listeners
         ws_listeners = []
 
         if ws_host and ws_app_key:
+            # Log WebSocket authentication status
+            if websocket_auth_token:
+                api_logger.info("WebSocket will use API authentication token")
+            else:
+                api_logger.info(
+                    "WebSocket will connect without authentication (public channels only)"
+                )
+
             # Config updates listener
             config_channel = config.get("websocket.channels.config", "config-updates")
             config_event = config.get(
@@ -143,7 +156,7 @@ if __name__ == "__main__":
                 host=ws_host,
                 port=ws_port,
                 secure=ws_secure,
-                token=ws_token if ws_token else None,
+                token=websocket_auth_token if websocket_auth_token else None,
                 reconnect_delay=ws_reconnect_delay,
                 logger=api_logger,
             )
@@ -165,7 +178,7 @@ if __name__ == "__main__":
                 host=ws_host,
                 port=ws_port,
                 secure=ws_secure,
-                token=ws_token if ws_token else None,
+                token=websocket_auth_token if websocket_auth_token else None,
                 reconnect_delay=ws_reconnect_delay,
                 logger=api_logger,
             )
@@ -193,7 +206,9 @@ if __name__ == "__main__":
             console_logger.error("RTL-FM failed to start!")
             if rtl_process.stderr:
                 error_output = rtl_process.stderr.read()
-                console_logger.error("RTL-FM error: %s", error_output.decode())
+                if isinstance(error_output, bytes):
+                    error_output = error_output.decode("utf-8", errors="replace")
+                console_logger.error("RTL-FM error: %s", error_output)
             console_logger.error("Make sure an RTL-SDR device is connected")
             console_logger.error("Test with: rtl_test")
             sys.exit(1)
@@ -213,7 +228,9 @@ if __name__ == "__main__":
             console_logger.error("Multimon-NG failed to start!")
             if multimon_process.stderr:
                 error_output = multimon_process.stderr.read()
-                console_logger.error("Multimon-NG error: %s", error_output.decode())
+                if isinstance(error_output, bytes):
+                    error_output = error_output.decode("utf-8", errors="replace")
+                console_logger.error("Multimon-NG error: %s", error_output)
             rtl_process.terminate()
             sys.exit(1)
 

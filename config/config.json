@@ -56,7 +56,7 @@
 		"app_key": "uu5cwxbjivil6ykji9qu",
 		"channels": {
 			"config": "config",
-			"commands": "private-message"
+			"commands": "message"
 		},
 		"events": {
 			"config_updated": "config.updated",
