@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import time
 import argparse
 import setproctitle
 from includes.api.laravel_api_client import LaravelAPIClient
@@ -185,6 +186,18 @@ if __name__ == "__main__":
         rtl_worker = RtlFmWorker(rtl_command, rtl_args, logger=api_logger)
         rtl_process = rtl_worker.start()
 
+        # Check if rtl_fm started successfully
+        time.sleep(0.5)  # Give process a moment to start
+        if rtl_process.poll() is not None:
+            # Process already exited
+            console_logger.error("RTL-FM failed to start!")
+            if rtl_process.stderr:
+                error_output = rtl_process.stderr.read()
+                console_logger.error("RTL-FM error: %s", error_output.decode())
+            console_logger.error("Make sure an RTL-SDR device is connected")
+            console_logger.error("Test with: rtl_test")
+            sys.exit(1)
+
         api_logger.info("Starting Multimon-NG worker...")
         multimon_worker = MultimonWorker(
             multimon_command,
@@ -193,6 +206,16 @@ if __name__ == "__main__":
             logger=api_logger,
         )
         multimon_process = multimon_worker.start()
+
+        # Check if multimon-ng started successfully
+        time.sleep(0.5)
+        if multimon_process.poll() is not None:
+            console_logger.error("Multimon-NG failed to start!")
+            if multimon_process.stderr:
+                error_output = multimon_process.stderr.read()
+                console_logger.error("Multimon-NG error: %s", error_output.decode())
+            rtl_process.terminate()
+            sys.exit(1)
 
         if rtl_process.stdout:
             rtl_process.stdout.close()
