@@ -237,8 +237,8 @@ if __name__ == "__main__":
         )
         multimon_process = multimon_worker.start()
 
-        if rtl_process.stdout:
-            rtl_process.stdout.close()
+        # Don't close rtl_process.stdout - multimon-ng needs it!
+        # The pipe will be closed automatically when processes terminate
 
         console_logger.info("Workers started. Listening for POCSAG messages...")
 
