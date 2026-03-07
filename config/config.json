@@ -4,8 +4,8 @@
 	},
 	"api": {
 		"base_url": "https://nox.lwyrup.at/api",
-		"user": "",
-		"password": "",
+		"user": "feeder1@api.local",
+		"password": "gh95q1IOxRzNQ6DYH2GB",
 		"token": "",
 		"config_endpoint": "/config",
 		"messages_endpoint": "/message",
@@ -68,7 +68,7 @@
 	"messages": {
 		"storage_dir": "messages",
 		"save_local": true,
-		"send_to_api": true
+		"send_to_api": false
 	},
 	"config": {
 		"persist": false

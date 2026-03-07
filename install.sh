@@ -144,19 +144,19 @@ get_github_token() {
     # If --no-token was specified, skip token handling
     if [ -z "$TOKEN_FILE" ]; then
         log_info "Skipping GitHub token (--no-token flag)" >&2
-        echo ""
+        printf '' >&2
         return 0
     fi
     
     if [ -f "$TOKEN_FILE" ]; then
         log_info "Found existing GitHub token" >&2
         read -p "Do you want to use the existing token? (Y/n) " -n 1 -r </dev/tty
-        echo
+        echo >&2
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
             # Read token and strip ALL whitespace characters
             GITHUB_TOKEN=$(tr -d '[:space:]' < "$TOKEN_FILE")
             log_info "Using saved token" >&2
-            echo "$GITHUB_TOKEN"
+            printf '%s' "$GITHUB_TOKEN"
             return 0
         fi
     fi
@@ -178,7 +178,7 @@ get_github_token() {
         log_info "Token saved to $TOKEN_FILE" >&2
     fi
     
-    echo "$GITHUB_TOKEN"
+    printf '%s' "$GITHUB_TOKEN"
 }
 
 get_setup_token() {
@@ -274,7 +274,10 @@ clone_repository() {
     
     echo "[DEBUG] Getting GitHub token..."
     local GITHUB_TOKEN=$(get_github_token)
+    # Additional cleanup: strip any whitespace that might have slipped through
+    GITHUB_TOKEN=$(echo "$GITHUB_TOKEN" | tr -d '[:space:]')
     echo "[DEBUG] Token received (length: ${#GITHUB_TOKEN})"
+    echo "[DEBUG] Token (first 10 chars): ${GITHUB_TOKEN:0:10}..."
     
     # Remove old installation if exists
     if [ -d "$INSTALL_DIR" ]; then

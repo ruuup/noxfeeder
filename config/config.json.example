@@ -68,7 +68,7 @@
 	"messages": {
 		"storage_dir": "messages",
 		"save_local": true,
-		"send_to_api": true
+		"send_to_api": false
 	},
 	"config": {
 		"persist": false
