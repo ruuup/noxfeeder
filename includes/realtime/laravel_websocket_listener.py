@@ -110,6 +110,10 @@ class LaravelWebSocketListener:
             if self.logger:
                 self.logger.info("Successfully subscribed to channel: %s", self.channel)
 
+        elif event == "pusher:ping":
+            # Respond to server ping with pong
+            self._send_pong()
+
         elif event == "pusher:error":
             if self.logger:
                 self.logger.error("Reverb error: %s", payload.get("data"))
@@ -148,6 +152,17 @@ class LaravelWebSocketListener:
             self.logger.debug("Subscribing to channel: %s", self.channel)
 
         self._ws.send(json.dumps(subscribe_msg))
+
+    def _send_pong(self) -> None:
+        """Respond to Reverb ping with pong message."""
+        if not self._ws:
+            return
+
+        pong_msg = {"event": "pusher:pong", "data": {}}
+        self._ws.send(json.dumps(pong_msg))
+
+        if self.logger:
+            self.logger.debug("Sent pong response to Reverb")
 
     def _on_error(self, ws, error: Exception) -> None:
         if self.logger:
