@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+import ssl
 from typing import Callable, Optional, Dict, Any
 import websocket
 import logging
@@ -43,6 +44,12 @@ class LaravelWebSocketListener:
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
+        
+        if self.logger:
+            self.logger.info("Starting WebSocket listener for channel: %s", self.channel)
+            self.logger.debug("WebSocket URL: %s", self._build_url())
+            self.logger.debug("WebSocket Auth: %s", "Yes" if self.token else "No")
+        
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
         # Start heartbeat thread
@@ -72,15 +79,29 @@ class LaravelWebSocketListener:
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
-            self._ws = websocket.WebSocketApp(
-                self._build_url(),
-                header=self._headers(),
-                on_open=self._on_open,
-                on_message=self._on_message,
-                on_error=self._on_error,
-                on_close=self._on_close,
-            )
-            self._ws.run_forever()
+            try:
+                if self.logger:
+                    self.logger.debug("Attempting WebSocket connection to %s", self.host)
+                
+                self._ws = websocket.WebSocketApp(
+                    self._build_url(),
+                    header=self._headers(),
+                    on_open=self._on_open,
+                    on_message=self._on_message,
+                    on_error=self._on_error,
+                    on_close=self._on_close,
+                )
+                
+                # SSL options for wss:// connections
+                sslopt = None
+                if self.secure:
+                    sslopt = {"cert_reqs": ssl.CERT_NONE}
+                
+                self._ws.run_forever(sslopt=sslopt)
+                
+            except Exception as e:
+                if self.logger:
+                    self.logger.error("WebSocket thread exception: %s", e, exc_info=True)
 
             if self._stop_event.is_set():
                 break
