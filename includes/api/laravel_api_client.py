@@ -110,6 +110,10 @@ class LaravelAPIClient:
                 self.token_expires_at,
             )
 
+        # Callback for token updates (can be used to persist token)
+        if hasattr(self, 'on_token_updated') and callable(self.on_token_updated):
+            self.on_token_updated(self.token, self.token_expires_at)
+
         return data
 
     def renew_token(self) -> Dict[str, Any]:
@@ -137,6 +141,10 @@ class LaravelAPIClient:
             self.logger.info(
                 "Token renewed successfully. New expiry: %s", self.token_expires_at
             )
+
+        # Callback for token updates (can be used to persist token)
+        if hasattr(self, 'on_token_updated') and callable(self.on_token_updated):
+            self.on_token_updated(self.token, self.token_expires_at)
 
         return data
 

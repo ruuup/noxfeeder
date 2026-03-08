@@ -55,6 +55,26 @@ class Config:
 
         return value
 
+    def set(self, key: str, value: Any) -> None:
+        """
+        Sets a value in the configuration.
+
+        Args:
+            key: Key in the format 'section.key' (e.g. 'api.token')
+            value: Value to set
+        """
+        keys = key.split(".")
+        config = self._config
+
+        # Navigate to the parent dictionary
+        for k in keys[:-1]:
+            if k not in config:
+                config[k] = {}
+            config = config[k]
+
+        # Set the final value
+        config[keys[-1]] = value
+
     @property
     def api_base_url(self) -> str:
         """API base URL."""

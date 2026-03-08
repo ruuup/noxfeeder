@@ -59,18 +59,38 @@ if __name__ == "__main__":
             logger=api_logger,
         )
 
+        # Setup callback to persist token on updates (login/renewal)
+        def persist_token(token, expires_at):
+            """Callback to save token to config when it's updated."""
+            if config.get("config.persist", False):
+                config.set("api.token", token)
+                if expires_at:
+                    config.set("api.token_expires_at", expires_at.isoformat())
+                config.save()
+                api_logger.info("Token updated and saved to config.json")
+
+        # Assign callback to API client
+        api_client.on_token_updated = persist_token
+
         # Authenticate if user/password configured
         if api_user and api_password:
-            try:
-                api_logger.info("Authenticating with API...")
-                api_client.login()
-                api_logger.info("Authentication successful")
-            except Exception as e:
-                api_logger.error("Failed to authenticate with API: %s", e)
-                console_logger.error(
-                    "Authentication failed. Please check your credentials in config.json"
-                )
-                sys.exit(1)
+            # Check if we have a valid token already
+            if api_token:
+                api_logger.info("Using existing token from config")
+                # Token will be checked and renewed if needed on first API call
+            else:
+                # No token yet, perform initial login
+                try:
+                    api_logger.info("No token found - authenticating with API...")
+                    login_response = api_client.login()
+                    api_logger.info("Authentication successful")
+                    # Token is automatically saved via on_token_updated callback
+                except Exception as e:
+                    api_logger.error("Failed to authenticate with API: %s", e)
+                    console_logger.error(
+                        "Authentication failed. Please check your credentials in config.json"
+                    )
+                    sys.exit(1)
 
         # Use API token for WebSocket authentication if available
         # This allows private channels to work with the same authentication

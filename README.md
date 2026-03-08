@@ -124,14 +124,18 @@ wget -qO- https://raw.githubusercontent.com/Ruuup/noxfeed/main/install.sh | sudo
 sudo nano /home/nox/noxfeed/config/config.json
 ```
 
-Set your API token and Reverb app key:
+Set your API credentials and Reverb app key:
 ```json
 {
   "api": {
-    "token": "your-api-token-here"
+    "user": "feeder@example.com",
+    "password": "your-password-here"
   },
   "websocket": {
     "app_key": "your-reverb-app-key-here"
+  },
+  "config": {
+    "persist": true
   }
 }
 ```
@@ -442,8 +446,12 @@ cp config/config.json.example config/config.json
 ```
 
 **Required settings:**
-- `api.token` - Your Laravel API authentication token
+- `api.user` - Your Laravel API username/email
+- `api.password` - Your Laravel API password
 - `websocket.app_key` - Your Laravel Reverb application key
+
+**Optional settings:**
+- `config.persist` - Set to `true` to save authentication tokens to config file
 
 ### RTL-FM Configuration
 
@@ -484,17 +492,54 @@ Messages are also sent to Laravel API endpoint `/messages`.
 
 ## API Configuration
 
+NoxFeed uses **token-based authentication** with automatic token management:
+
 ```json
 "api": {
     "base_url": "https://nox.lwyrup.at/api",
-    "token": "your-api-token",
+    "user": "feeder@example.com",
+    "password": "your-password",
+    "token": "",
+    "token_expires_at": "",
     "config_endpoint": "/config",
-    "messages_endpoint": "/messages",
+    "messages_endpoint": "/message",
     "timeout": 30,
     "max_retries": 3,
     "retry_delay": 5
 }
 ```
+
+**Authentication Flow:**
+
+1. **First Start**: Application authenticates with `user` and `password` via POST `/api/auth/token`
+2. **Token Storage**: Received token (10-day lifetime) is saved to `config.json` (when `config.persist` = `true`)
+3. **Token Reuse**: On subsequent starts, the stored token is used
+4. **Auto-Renewal**: Token is automatically renewed before expiry via POST `/api/auth/renew`
+5. **Fallback**: If renewal fails, a fresh login is performed
+
+**Configuration Options:**
+
+- `user`: Email or username for API authentication
+- `password`: Password for API authentication
+- `token`: Bearer token (auto-generated and managed, leave empty initially)
+- `token_expires_at`: Token expiration timestamp (auto-managed)
+- `config_endpoint`: Endpoint to fetch configuration updates
+- `messages_endpoint`: Endpoint to send POCSAG messages
+- `timeout`: HTTP request timeout in seconds
+- `max_retries`: Number of retry attempts for failed requests
+- `retry_delay`: Delay between retries in seconds
+
+**Token Persistence:**
+
+Set `config.persist` to `true` to enable automatic token storage:
+
+```json
+"config": {
+    "persist": true
+}
+```
+
+This ensures the token survives application restarts, reducing unnecessary logins.
 
 ## Remote Commands
 

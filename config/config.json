@@ -7,6 +7,7 @@
 		"user": "feeder1@api.local",
 		"password": "gh95q1IOxRzNQ6DYH2GB",
 		"token": "",
+		"token_expires_at": "",
 		"config_endpoint": "/config",
 		"messages_endpoint": "/message",
 		"timeout": 30,
@@ -72,7 +73,7 @@
 		"send_to_api": false
 	},
 	"config": {
-		"persist": false
+		"persist": true
 	},
 	"logging": {
 		"enabled": true,
