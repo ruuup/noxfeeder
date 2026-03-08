@@ -145,13 +145,21 @@ class LaravelWebSocketListener:
             # Subscribe to the channel
             self._subscribe()
 
-        elif event == "pusher:subscription_succeeded":
+        elif (
+            event == "pusher:subscription_succeeded"
+            or event == "pusher_internal:subscription_succeeded"
+        ):
             if self.logger:
                 self.logger.info("Successfully subscribed to channel: %s", self.channel)
 
         elif event == "pusher:ping":
             # Respond to server ping with pong
             self._send_pong()
+
+        elif event == "pusher:pong":
+            # Response to our heartbeat ping - this is expected
+            if self.logger:
+                self.logger.debug("Received pong from server")
 
         elif event == "pusher:error":
             if self.logger:
