@@ -7,7 +7,7 @@ import logging
 class LaravelAPIClient:
     """
     Client for communicating with a Laravel API with token-based authentication.
-    
+
     Features:
     - Initial authentication with username/password (POST /auth/token)
     - Automatic token management (10-day lifetime)
@@ -16,7 +16,7 @@ class LaravelAPIClient:
     - All HTTP methods (GET, POST, PUT, DELETE) with auto-authentication
     - Error logging for failed requests
     - Compatible with Laravel Reverb WebSocket authentication
-    
+
     Usage:
         client = LaravelAPIClient(
             base_url="https://api.example.com",
@@ -24,13 +24,13 @@ class LaravelAPIClient:
             password="password",
             logger=logger
         )
-        
+
         # First call triggers login
         client.post("/message", {"timestamp": "...", "ric": "...", "subric": "...", "message": "..."})
-        
+
         # Subsequent calls reuse token, auto-renew if needed
         client.get("/config")
-    \"\"\"
+    """
 
     def __init__(
         self,
@@ -136,7 +136,7 @@ class LaravelAPIClient:
             )
 
         # Callback for token updates (can be used to persist token)
-        if hasattr(self, 'on_token_updated') and callable(self.on_token_updated):
+        if hasattr(self, "on_token_updated") and callable(self.on_token_updated):
             self.on_token_updated(self.token, self.token_expires_at)
 
         return data
@@ -168,7 +168,7 @@ class LaravelAPIClient:
             )
 
         # Callback for token updates (can be used to persist token)
-        if hasattr(self, 'on_token_updated') and callable(self.on_token_updated):
+        if hasattr(self, "on_token_updated") and callable(self.on_token_updated):
             self.on_token_updated(self.token, self.token_expires_at)
 
         return data
