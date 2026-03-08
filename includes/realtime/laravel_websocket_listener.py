@@ -124,6 +124,10 @@ class LaravelWebSocketListener:
             self.logger.info("WebSocket connected to Reverb: %s", self.host)
 
     def _on_message(self, ws, message: str) -> None:
+        # Log all incoming messages for debugging
+        if self.logger:
+            self.logger.debug("WS << %s", message)
+
         try:
             payload = json.loads(message)
         except json.JSONDecodeError:
@@ -165,6 +169,11 @@ class LaravelWebSocketListener:
                 {"event": event, "data": data, "channel": payload.get("channel")}
             )
 
+        else:
+            # Log unknown events
+            if self.logger:
+                self.logger.info("Unknown WebSocket event: %s", event)
+
     def _subscribe(self) -> None:
         """Subscribe to a channel using Pusher protocol."""
         if not self._ws:
@@ -184,7 +193,8 @@ class LaravelWebSocketListener:
             subscribe_msg["data"]["auth"] = self.token
 
         if self.logger:
-            self.logger.debug("Subscribing to channel: %s", self.channel)
+            self.logger.info("Subscribing to channel: %s", self.channel)
+            self.logger.debug("WS >> %s", json.dumps(subscribe_msg))
 
         self._ws.send(json.dumps(subscribe_msg))
 
