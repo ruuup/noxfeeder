@@ -122,10 +122,24 @@ class MessageHandler:
             return False
 
         try:
-            response = self.api_client.post(self.api_endpoint, message_data)
+            # Transform to API format: timestamp, ric, subric, message
+            api_payload = {
+                "timestamp": message_data.get("timestamp"),
+                "ric": message_data.get(
+                    "address"
+                ),  # RIC = Receiver Identity Code (address)
+                "subric": message_data.get("function"),  # SubRIC = Function code
+                "message": message_data.get("message", ""),
+            }
+
+            response = self.api_client.post(self.api_endpoint, api_payload)
 
             if self.logger:
-                self.logger.info("Message sent to API: %s", message_data.get("address"))
+                self.logger.info(
+                    "Message sent to API: RIC=%s, SubRIC=%s",
+                    api_payload.get("ric"),
+                    api_payload.get("subric"),
+                )
 
             return True
         except Exception as e:

@@ -20,6 +20,7 @@ class LaravelWebSocketListener:
         secure: bool = True,
         token: Optional[str] = None,
         reconnect_delay: int = 5,
+        heartbeat_interval: int = 15,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         self.app_key = app_key
@@ -31,9 +32,11 @@ class LaravelWebSocketListener:
         self.secure = secure
         self.token = token
         self.reconnect_delay = reconnect_delay
+        self.heartbeat_interval = heartbeat_interval
         self.logger = logger
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
+        self._heartbeat_thread: Optional[threading.Thread] = None
         self._ws: Optional[websocket.WebSocketApp] = None
         self._connected = False
 
@@ -42,6 +45,11 @@ class LaravelWebSocketListener:
             return
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
+        # Start heartbeat thread
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_loop, daemon=True
+        )
+        self._heartbeat_thread.start()
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -163,6 +171,21 @@ class LaravelWebSocketListener:
 
         if self.logger:
             self.logger.debug("Sent pong response to Reverb")
+
+    def _heartbeat_loop(self) -> None:
+        """Send heartbeat to server every interval to keep connection alive."""
+        while not self._stop_event.is_set():
+            time.sleep(self.heartbeat_interval)
+            if self._connected and self._ws:
+                try:
+                    # Send ping to server
+                    ping_msg = {"event": "pusher:ping", "data": {}}
+                    self._ws.send(json.dumps(ping_msg))
+                    if self.logger:
+                        self.logger.debug("Sent heartbeat ping to Reverb")
+                except Exception as e:
+                    if self.logger:
+                        self.logger.warning("Failed to send heartbeat: %s", e)
 
     def _on_error(self, ws, error: Exception) -> None:
         if self.logger:

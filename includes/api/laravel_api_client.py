@@ -5,7 +5,32 @@ import logging
 
 
 class LaravelAPIClient:
-    """Client for communicating with a Laravel API with token-based authentication."""
+    """
+    Client for communicating with a Laravel API with token-based authentication.
+    
+    Features:
+    - Initial authentication with username/password (POST /auth/token)
+    - Automatic token management (10-day lifetime)
+    - Automatic token renewal before expiry (POST /auth/renew)
+    - Token persistence via callback
+    - All HTTP methods (GET, POST, PUT, DELETE) with auto-authentication
+    - Error logging for failed requests
+    - Compatible with Laravel Reverb WebSocket authentication
+    
+    Usage:
+        client = LaravelAPIClient(
+            base_url="https://api.example.com",
+            user="user@example.com",
+            password="password",
+            logger=logger
+        )
+        
+        # First call triggers login
+        client.post("/message", {"timestamp": "...", "ric": "...", "subric": "...", "message": "..."})
+        
+        # Subsequent calls reuse token, auto-renew if needed
+        client.get("/config")
+    \"\"\"
 
     def __init__(
         self,
