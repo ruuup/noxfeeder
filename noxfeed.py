@@ -163,7 +163,7 @@ if __name__ == "__main__":
                 )
 
             # Config updates listener
-            config_channel = config.get("websocket.channels.config", "config-updates")
+            config_channel = config.get("websocket.channels.config", "private-config")
             config_event = config.get(
                 "websocket.events.config_updated", "config.updated"
             )
@@ -173,6 +173,7 @@ if __name__ == "__main__":
                 channel=config_channel,
                 event_name=config_event,
                 on_event=handle_config_update,
+                api_client=api_client,
                 host=ws_host,
                 port=ws_port,
                 secure=ws_secure,
@@ -185,9 +186,11 @@ if __name__ == "__main__":
             api_logger.info("WebSocket config listener started")
 
             # Commands listener
-            commands_channel = config.get("websocket.channels.commands", "commands")
+            commands_channel = config.get(
+                "websocket.channels.commands", "private-message"
+            )
             commands_event = config.get(
-                "websocket.events.command_received", "command.execute"
+                "websocket.events.command_received", "message.sent"
             )
 
             ws_commands_listener = LaravelWebSocketListener(
@@ -195,6 +198,7 @@ if __name__ == "__main__":
                 channel=commands_channel,
                 event_name=commands_event,
                 on_event=handle_command,
+                api_client=api_client,
                 host=ws_host,
                 port=ws_port,
                 secure=ws_secure,
@@ -204,8 +208,6 @@ if __name__ == "__main__":
             )
             ws_commands_listener.start()
             ws_listeners.append(ws_commands_listener)
-            api_logger.info("WebSocket commands listener started")
-
             api_logger.info("WebSocket commands listener started")
 
         # RTL-FM and Multimon-NG workers

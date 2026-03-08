@@ -2,6 +2,8 @@ import json
 import threading
 import time
 import ssl
+import socket as sock
+from datetime import datetime
 from typing import Callable, Optional, Dict, Any
 import websocket
 import logging
@@ -16,30 +18,41 @@ class LaravelWebSocketListener:
         channel: str,
         event_name: str,
         on_event: Callable[[Dict[str, Any]], None],
+        api_client=None,
         host: str = "nox.lwyrup.at",
         port: int = 443,
         secure: bool = True,
         token: Optional[str] = None,
         reconnect_delay: int = 5,
         heartbeat_interval: int = 15,
+        monitoring_interval: int = 30,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         self.app_key = app_key
         self.channel = channel
         self.event_name = event_name
         self.on_event = on_event
+        self.api_client = api_client
         self.host = host
         self.port = port
         self.secure = secure
         self.token = token
         self.reconnect_delay = reconnect_delay
         self.heartbeat_interval = heartbeat_interval
+        self.monitoring_interval = monitoring_interval
         self.logger = logger
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._heartbeat_thread: Optional[threading.Thread] = None
+        self._monitoring_thread: Optional[threading.Thread] = None
         self._ws: Optional[websocket.WebSocketApp] = None
         self._connected = False
+        self._socket_id: Optional[str] = None
+
+        # Client identification for monitoring
+        self.client_id = f"noxfeed-{sock.gethostname()}"
+        self.client_name = "NoxFeed Python Client"
+        self.hostname = sock.gethostname()
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -54,11 +67,19 @@ class LaravelWebSocketListener:
 
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
-        # Start heartbeat thread
+
+        # Start Pusher heartbeat thread
         self._heartbeat_thread = threading.Thread(
             target=self._heartbeat_loop, daemon=True
         )
         self._heartbeat_thread.start()
+
+        # Start monitoring heartbeat thread (for feeder status)
+        if self.api_client:
+            self._monitoring_thread = threading.Thread(
+                target=self._monitoring_loop, daemon=True
+            )
+            self._monitoring_thread.start()
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -140,8 +161,25 @@ class LaravelWebSocketListener:
         # Handle Pusher/Reverb protocol events
         if event == "pusher:connection_established":
             self._connected = True
+            # Extract socket_id for channel auth
+            data = payload.get("data")
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    pass
+            if isinstance(data, dict):
+                self._socket_id = data.get("socket_id")
+
             if self.logger:
-                self.logger.info("Reverb connection established")
+                self.logger.info(
+                    "Reverb connection established (socket_id: %s)", self._socket_id
+                )
+
+            # Register with monitoring system
+            if self.api_client:
+                self._track_noxfeed_client(announce=True)
+
             # Subscribe to the channel
             self._subscribe()
 
@@ -194,11 +232,22 @@ class LaravelWebSocketListener:
             },
         }
 
-        # Add auth if token is provided (for private/presence channels)
-        if self.token and (
-            self.channel.startswith("private-") or self.channel.startswith("presence-")
-        ):
-            subscribe_msg["data"]["auth"] = self.token
+        # For private/presence channels, get auth from Laravel
+        if self.channel.startswith("private-") or self.channel.startswith("presence-"):
+            if not self._socket_id:
+                if self.logger:
+                    self.logger.error(
+                        "Cannot subscribe to private channel: no socket_id"
+                    )
+                return
+
+            auth = self._get_channel_auth(self._socket_id, self.channel)
+            if not auth:
+                if self.logger:
+                    self.logger.error("Failed to get channel auth for %s", self.channel)
+                return
+
+            subscribe_msg["data"]["auth"] = auth
 
         if self.logger:
             self.logger.info("Subscribing to channel: %s", self.channel)
@@ -216,6 +265,111 @@ class LaravelWebSocketListener:
 
         if self.logger:
             self.logger.debug("Sent pong response to Reverb")
+
+    def _get_channel_auth(self, socket_id: str, channel_name: str) -> Optional[str]:
+        """Get channel authentication from Laravel /broadcasting/auth endpoint."""
+        if not self.api_client:
+            return None
+
+        try:
+            # Use requests session from api_client
+            headers = {
+                "Authorization": f"Bearer {self.api_client.token}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            }
+
+            # Build auth URL (remove /api from base_url if present)
+            base_url = self.api_client.base_url.replace("/api", "")
+            auth_url = f"{base_url}/broadcasting/auth"
+
+            response = self.api_client.session.post(
+                auth_url,
+                json={"socket_id": socket_id, "channel_name": channel_name},
+                headers=headers,
+                timeout=10,
+            )
+
+            if response.status_code != 200:
+                if self.logger:
+                    self.logger.error(
+                        "Channel auth failed %s: %s",
+                        response.status_code,
+                        response.text,
+                    )
+                return None
+
+            data = response.json()
+            auth_token = data.get("auth")
+
+            if self.logger:
+                self.logger.debug("Channel auth successful for %s", channel_name)
+
+            return auth_token
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error("Exception during channel auth: %s", e)
+            return None
+
+    def _track_noxfeed_client(self, announce: bool = False) -> bool:
+        """Register/update this client in the monitoring system."""
+        if not self.api_client:
+            return False
+
+        try:
+            payload = {
+                "client_id": self.client_id,
+                "client_name": self.client_name,
+                "user": self.api_client.user,
+                "password": self.api_client.password,
+                "metadata": {
+                    "hostname": self.hostname,
+                    "email": self.api_client.user,
+                    "connected_at": datetime.now().isoformat(),
+                },
+            }
+
+            response = self.api_client.session.post(
+                f"{self.api_client.base_url}/websocket/track/noxfeed-client",
+                json=payload,
+                timeout=10,
+            )
+
+            if response.status_code == 200:
+                if announce and self.logger:
+                    self.logger.info(
+                        "Monitoring registration successful: %s", self.client_id
+                    )
+                return True
+
+            if announce and self.logger:
+                self.logger.error(
+                    "Monitoring registration failed %s: %s",
+                    response.status_code,
+                    response.text,
+                )
+            return False
+
+        except Exception as e:
+            if announce and self.logger:
+                self.logger.error("Monitoring track exception: %s", e)
+            return False
+
+    def _monitoring_loop(self) -> None:
+        """Send monitoring heartbeat to keep feeder status as online."""
+        # Wait a bit before starting to ensure connection is established
+        time.sleep(5)
+
+        while not self._stop_event.is_set():
+            if self._connected:
+                try:
+                    self._track_noxfeed_client(announce=False)
+                except Exception as e:
+                    if self.logger:
+                        self.logger.warning("Monitoring heartbeat failed: %s", e)
+
+            time.sleep(self.monitoring_interval)
 
     def _heartbeat_loop(self) -> None:
         """Send heartbeat to server every interval to keep connection alive."""

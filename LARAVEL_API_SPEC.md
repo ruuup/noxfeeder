@@ -109,20 +109,51 @@ App Key: uu5cwxbjivil6ykji9qu
 Header: Authorization: Bearer {token}
 ```
 
-**Wichtig:** WebSocket nutzt den gleichen Token wie die API!
+**Wichtig:** WebSocket verwendet den **gleichen Token** wie die API!
+
+---
+
+### Broadcasting Authentication
+**POST** `/broadcasting/auth`
+
+Headers:
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+Request:
+```json
+{
+  "socket_id": "123.456",
+  "channel_name": "private-message"
+}
+```
+
+Response:
+```json
+{
+  "auth": "{app_key}:{signature}"
+}
+```
+
+**Details:**
+- Wird für private/presence channels benötigt
+- Client ruft nach `pusher:connection_established` auf
+- `auth` wird beim `pusher:subscribe` mitgesendet
 
 ---
 
 ### Channels
 
-#### Channel: `message` (Public)
+#### Channel: `private-message` (Private)
 Event: `message.sent`
 
 Payload:
 ```json
 {
   "event": "message.sent",
-  "channel": "message",
+  "channel": "private-message",
   "data": {
     "timestamp": "2026-03-08T14:23:45.123456",
     "ric": "1234567",
@@ -132,14 +163,14 @@ Payload:
 }
 ```
 
-#### Channel: `config` (Public)
+#### Channel: `private-config` (Private)
 Event: `config.updated`
 
 Payload:
 ```json
 {
   "event": "config.updated",
-  "channel": "config",
+  "channel": "private-config",
   "data": {
     "config_url": "/api/config"
   }
@@ -147,6 +178,45 @@ Payload:
 ```
 
 Client fetched dann neue Config via GET /api/config
+
+---
+
+### Feeder Monitoring
+**POST** `/api/websocket/track/noxfeed-client`
+
+Headers:
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+Request:
+```json
+{
+  "client_id": "noxfeed-hostname",
+  "client_name": "NoxFeed Python Client",
+  "user": "feeder1@api.local",
+  "password": "gh95q1IOxRzNQ6DYH2GB",
+  "metadata": {
+    "hostname": "noxnode-jerry",
+    "email": "feeder1@api.local",
+    "connected_at": "2026-03-08T10:24:03.619000"
+  }
+}
+```
+
+Response:
+```json
+{
+  "success": true
+}
+```
+
+**Details:**
+- Beim ersten Connect: `announce=true` (mit Logging)
+- Heartbeat alle 30 Sekunden: `announce=false` (ohne Logging)
+- Feeder erscheint als "Online" im Index
+- Check mit: `php artisan tinker --execute "dump(Cache::get('websocket.noxfeed_clients', []))"`
 
 ---
 
@@ -174,17 +244,28 @@ Client fetched dann neue Config via GET /api/config
 ```
 
 #### Client → Server:
-1. **Subscribe**
+1. **Subscribe (Public Channel)**
 ```json
-{"event": "pusher:subscribe", "data": {"channel": "message"}}
+{"event": "pusher:subscribe", "data": {"channel": "public-channel"}}
 ```
 
-2. **Pong**
+2. **Subscribe (Private Channel)**
+```json
+{
+  "event": "pusher:subscribe",
+  "data": {
+    "channel": "private-message",
+    "auth": "{app_key}:{signature}"
+  }
+}
+```
+
+3. **Pong**
 ```json
 {"event": "pusher:pong", "data": {}}
 ```
 
-3. **Heartbeat** (alle 15 Sekunden)
+4. **Heartbeat** (alle 15 Sekunden)
 ```json
 {"event": "pusher:ping", "data": {}}
 ```
@@ -197,20 +278,27 @@ Client fetched dann neue Config via GET /api/config
 1. Login: POST /api/auth/token mit user/password
 2. Token speichern in config.json (wenn config.persist: true)
 3. WebSocket verbinden mit Bearer Token
-4. Subscribe zu Channels: "message" und "config"
-5. Heartbeat-Thread starten (Ping alle 15 Sekunden)
+4. Empfange `pusher:connection_established` mit socket_id
+5. Für jeden private channel: POST /broadcasting/auth mit socket_id
+6. Subscribe zu Channels mit auth: "private-config" und "private-message"
+7. POST /api/websocket/track/noxfeed-client (Monitoring Registration)
+8. Heartbeat-Threads starten:
+   - Pusher-Ping alle 15s
+   - Monitoring-Track alle 30s
 
 ### Laufzeit:
 - **Token Check:** Vor jedem API-Call prüfen ob Token < 1h gültig
 - **Token Renewal:** Bei < 1h: POST /api/auth/renew
 - **Message Flow:** RTL-SDR → Multimon-NG → Parser → POST /api/message
-- **Heartbeat:** Alle 15s pusher:ping senden
+- **Pusher Heartbeat:** Alle 15s pusher:ping senden
+- **Monitoring Heartbeat:** Alle 30s /api/websocket/track/noxfeed-client
 - **Pong Response:** Auf Server pusher:ping mit pusher:pong antworten
 
 ### Bei Fehler:
 - **WebSocket Disconnect:** Auto-Reconnect nach 5 Sekunden
 - **Token Renewal Failed:** Fallback auf neuen Login (POST /auth/token)
 - **API Errors:** Logging mit Details
+- **Broadcasting Auth Failed:** Keine Subscription (Error-Log)
 
 ---
 
@@ -277,7 +365,10 @@ public function store(Request $request)
 
 - **Auth:** Token-basiert, 10 Tage gültig, auto-renewal 1h vor Ablauf
 - **API Format:** timestamp, ric, subric, message
-- **WebSocket:** Pusher Protocol v7, Channels: message + config
-- **Heartbeat:** 15 Sekunden Client-Ping
+- **WebSocket:** Pusher Protocol v7, Private Channels: private-message + private-config
+- **Broadcasting Auth:** POST /broadcasting/auth mit socket_id + channel_name
+- **Pusher Heartbeat:** 15 Sekunden Client-Ping
+- **Monitoring Heartbeat:** 30 Sekunden /api/websocket/track/noxfeed-client
 - **Reconnect:** Automatisch nach 5s bei Verbindungsabbruch
-- **Logging:** Alle Fehler werden geloggt (API, WebSocket, Token)
+- **Logging:** Alle Fehler werden geloggt (API, WebSocket, Token, Broadcasting Auth)
+- **Feeder Status:** Erscheint als "Online" im Index nach erfolgreichem Track-Call
